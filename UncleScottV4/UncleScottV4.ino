@@ -116,6 +116,7 @@ void writeToFile(char* fileName, int wet[], int dry[], float correctionValue[]) 
       myFile.print(dry[i]); // ends with the variable vlaue in "wet[1]: 23" saves dry array
     }
     
+    
     myFile.print("wet[]:");
     myFile.println(wet[]); // Write the wet value to the file
     myFile.print("dry[]:");
