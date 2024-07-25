@@ -1,5 +1,6 @@
 #include <SD.h> // sd card library
 #include <SPI.h> // hookups for sd card
+#include "RTC.h" // clock for datalogging feature
 
 const int sensor[] = {A0, A1, A2, A3, A4}; // Arduino pin connected to the AOUT pin of the moisture sensor
 
@@ -41,6 +42,15 @@ void loop() {
     calibrate();
   }
 
+
+  for (int i = 0; i < arraySize; i++){
+    if(analogRead(sensor[i]) < wet[i]){
+      wet[i] = analogRead(sensor[i]);
+      writeToFile(sensorCalibration, wet, dry, correctionValue);
+    }
+  }
+
+
   int sum = 0;
   for (int i = 0; i < arraySize; i++) {
     if (analogRead(sensor[i]) != sensorDisconnected) {// disregards disconnected sensors
@@ -57,9 +67,9 @@ void loop() {
   int average = (float)sum / arraySize;
 
   if (desiredWaterContent > average) {
-    digitalWrite(waterPin, HIGH); // turn on water
+    digitalWrite(waterSolenoid, HIGH); // turn on water
     delay(5000); // wait 5 seconds
-    digitalWrite(waterPin, LOW); // turn off water
+    digitalWrite(waterSolenoid, LOW); // turn off water
     delay(10000); // wait 10 seconds
   }
 
