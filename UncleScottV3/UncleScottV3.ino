@@ -17,7 +17,7 @@ const int buttonPin = 4;
 char sensorOneCalibration[] = "dataOne.txt";
 char charRead;
 
-int sensorDisconnected = 0 //needs actual value
+int sensorDisconnected = 0; //needs actual value
 
 int currentValue = 0;
 int wet = 0;
