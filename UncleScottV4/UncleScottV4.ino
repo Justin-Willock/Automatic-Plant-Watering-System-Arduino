@@ -42,6 +42,7 @@ void loop() {
     calibrate();
   }
 
+  Serial.println(analogRead(sensor[0]));
 
   for (int i = 0; i < arraySize; i++){
     if(analogRead(sensor[i]) < wet[i]){
@@ -53,7 +54,7 @@ void loop() {
 
   int sum = 0;
   for (int i = 0; i < arraySize; i++) {
-    if (analogRead(sensor[i]) != sensorDisconnected) {// disregards disconnected sensors
+    if (analogRead(correctionValue[i]) != 0) {// disregards disconnected sensors
       int value[arraySize] = {0};
       int y[arraySize] = {0};
       int valueCorrected[arraySize] = {0};
