@@ -1,3 +1,5 @@
+//That’s what a bug is, an annoying "aunt"!
+
 #include <SD.h> // sd card library
 #include <SPI.h> // hookups for sd card
 #include "RTC.h" // clock for datalogging feature
