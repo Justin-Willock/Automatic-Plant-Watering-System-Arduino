@@ -5,6 +5,9 @@
 #include "RTC.h" // clock for datalogging feature
 
 const int sensor[] = {A0, A1, A2, A3, A4}; // Arduino pin connected to the AOUT pin of the moisture sensor
+const int numSensors = sizeof(sensor) / sizeof(sensor[0]);
+bool sensorConnected[numSensors]; // Tracks whether each pin has a sensor connected
+
 
 const int chipSelect = 10; // sd card 
 const int waterSolenoid = 8; // solenoid on pin 8
@@ -13,15 +16,12 @@ const int buttonPin = 4; // calibrate button
 
 char sensorCalibration[] = "sensorCalibration.txt"; // file setup for all calibration data
 char runningData[] = "runningData.txt"; // file setup for all operating data
-const int arraySize = 5; // Adjust this to match the number of floats written it will adjust the number of sensors that can be used
-float readArray[arraySize]; // the temparary variable used to read the array off the sd card
-
-int sensorDisconnected = 0; //needs actual value will provide a threshold to discount these sensors from calculations 
+float readArray[numSensors]; // the temparary variable used to read the array off the sd card
 
 int currentValue = 0; // this is used for the raw data straight off the sensor
-int wet[arraySize] = {0}; // this is used to store the value the sensors have when in fully wet soil
-int dry[arraySize] = {0}; // this is used to store the value the sensors have when in fully dry soil
-float correctionValue[arraySize] = {0.0}; // this value is used to complete the equations for calibrating all sensors
+int wet[numSensors] = {0}; // this is used to store the value the sensors have when in fully wet soil
+int dry[numSensors] = {0}; // this is used to store the value the sensors have when in fully dry soil
+float correctionValue[numSensors] = {0.0}; // this value is used to complete the equations for calibrating all sensors
 int buttonState = 0; // Variable for reading the pushbutton status
 int desiredWaterContent = 50; // will be set by user in the future allowing for diffrent plant types currently set for tomatoes
 
@@ -46,7 +46,7 @@ void loop() {
 
   Serial.println(analogRead(sensor[0]));
 
-  for (int i = 0; i < arraySize; i++){
+  for (int i = 0; i < numSensors; i++){
     if(analogRead(sensor[i]) < wet[i]){
       wet[i] = analogRead(sensor[i]);
       writeToFile(sensorCalibration, wet, dry, correctionValue);
@@ -55,11 +55,11 @@ void loop() {
 
 
   int sum = 0;
-  for (int i = 0; i < arraySize; i++) {
+  for (int i = 0; i < numSensors; i++) {
     if (analogRead(correctionValue[i]) != 0) {// disregards disconnected sensors
-      int value[arraySize] = {0};
-      int y[arraySize] = {0};
-      int valueCorrected[arraySize] = {0};
+      int value[numSensors] = {0};
+      int y[numSensors] = {0};
+      int valueCorrected[numSensors] = {0};
       
       value[i] = analogRead(sensor[i]);
       y[i] = value[i] - wet[i];
@@ -67,7 +67,7 @@ void loop() {
       sum += valueCorrected[i];
     }
   }
-  int average = (float)sum / arraySize;
+  int average = (float)sum / numSensors;
 
   if (desiredWaterContent > average) {
     digitalWrite(waterSolenoid, HIGH); // turn on water
@@ -80,19 +80,22 @@ void loop() {
 }
 
 void calibrate() { // calibrates all sensors at the same time
+
   Serial.println("Put all in DRY soil"); // commands user to put all sensors into dry soil for first mesurement
   tone(buzzerPin, 1000); // alerts user
   delay(1000); // for one second
   noTone(buzzerPin); //then stops alerting user
   delay(120000); // waits 120 seconds to allow for full sensor stability 
 
-  for (int i = 0; i < arraySize; i++) {
+  detectSensors(); // Detect sensors at startup
+
+  for (int i = 0; i < numSensors; i++) {
     dry[i] = analogRead(sensor[i]); // sets this dry array position equal to it's asocciated sensor's value
   }
 
-  for (int i = 0; i < arraySize; i++) { // this compares the sensor diconnected value to the value given then deactivateds that sensor if it is in fact disconected 
-    if (dry[i] == sensorDisconnected) { // this compares the sensor diconnected value to the value 
-      dry[i] = 2; // disactivates sensor if the sensor is disconnected
+  for (int i = 0; i < numSensors; i++) { // this compares the sensor diconnected value to the value given then deactivateds that sensor if it is in fact disconected 
+    if (sensorConnected[i] == 0) { // this compares the sensor diconnected value to the value 
+      dry[i] = 2; // deactivates sensor if the sensor is disconnected
     }
   }
 
@@ -102,23 +105,23 @@ void calibrate() { // calibrates all sensors at the same time
   noTone(buzzerPin); //then stops alerting user
   delay(120000); // waits 120 seconds to allow for full sensor stability 
 
-  for (int i = 0; i < arraySize; i++) {
+  for (int i = 0; i < numSensors; i++) {
     wet[i] = analogRead(sensor[i]); // sets this dry array position equal to it's asocciated sensor's value
   }
 
-  for (int i = 0; i < arraySize; i++) { // this compares the sensor diconnected value to the value given then deactivateds that sensor if it is in fact disconected 
-    if (wet[i] == sensorDisconnected) { // this compares the sensor diconnected value to the value
-      wet[i] = 1; // disactivates sensor if the sensor is disconnected
+  for (int i = 0; i < numSensors; i++) { // this compares the sensor diconnected value to the value given then deactivateds that sensor if it is in fact disconected 
+    if (sensorConnected[i] == 0) { // this compares the sensor diconnected value to the value 
+      wet[i] = 1; // deactivates sensor if the sensor is disconnected
     }
   }
 
-  for (int i = 0; i < arraySize; i++) { // steps through the 5 diffrent sensors and independantly preforms and saves the calculations for each 
-    float x[arraySize] = {0};
+  for (int i = 0; i < numSensors; i++) { // steps through the 5 diffrent sensors and independantly preforms and saves the calculations for each 
+    float x[numSensors] = {0};
     x[i] = dry[i] - wet[i]; // uses a temporary x value to store the diffrence between min and max
     correctionValue[i] = 100.0 / x[i]; // uses the temporary x variable to form the correction value for each sensor
   }
 
-  for (int i = 0; i < arraySize; i++) { // this compares the sensor diconnected value to the value given then deactivateds that sensor if it is in fact disconected 
+  for (int i = 0; i < numSensors; i++) { // this compares the sensor diconnected value to the value given then deactivateds that sensor if it is in fact disconected 
     if (correctionValue[i] == 100.0) { // this compares the sensor diconnected value to the value
       correctionValue[i] = 0; // disactivates sensor if the sensor is disconnected
     }
@@ -155,7 +158,7 @@ void writeToFile(char* fileName, int wet[], int dry[], float correctionValue[]) 
       Serial.print("Writing to ");
       Serial.println(sensorCalibration);
 
-      for (int i = 0; i < arraySize; i++) { 
+      for (int i = 0; i < numSensors; i++) { 
         // repeat instructions multiple times
         writeArrayToFile(myFile, "wet", i, wet[i]); // saves wet array
         writeArrayToFile(myFile, "dry", i, dry[i]); // saves dry array
@@ -213,4 +216,33 @@ void readFromFile(char* fileName, int wet[], int dry[], float correctionValue[])
       Serial.println(sensorCalibration);
     }
   }
+}
+
+// Function to detect sensors on each pin
+void detectSensors() {
+    for (int i = 0; i < numSensors; i++) {
+        int pin = sensor[i];
+        int readings[10];
+        int stableValue = 0;
+
+        // Take multiple readings
+        for (int j = 0; j < 10; j++) {
+            readings[j] = analogRead(pin);
+            delay(10);
+        }
+
+        // Check for stability (low variability indicates a connected sensor)
+        stableValue = readings[0];
+        bool isStable = true;
+
+        for (int j = 1; j < 10; j++) {
+            if (abs(readings[j] - stableValue) > 5) { // Adjust threshold as needed
+                isStable = false;
+                break;
+            }
+        }
+
+        // Mark pin as connected or unused
+        sensorConnected[i] = isStable;
+    }
 }
